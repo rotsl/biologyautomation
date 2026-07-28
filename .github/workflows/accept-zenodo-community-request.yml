@@ -262,6 +262,23 @@ jobs:
                   print(f"ZENODO_VISIBLE_REQUEST_COUNT={len(requests)}")
 
                   for request_item in requests:
+                      print(
+                          "ZENODO_REQUEST_SUMMARY="
+                          + json.dumps(
+                              {
+                                  "id": request_item.get("id"),
+                                  "type": request_item.get("type"),
+                                  "status": request_item.get("status"),
+                                  "is_open": request_item.get("is_open"),
+                                  "is_closed": request_item.get("is_closed"),
+                                  "topic": request_item.get("topic"),
+                                  "receiver": request_item.get("receiver"),
+                              },
+                              sort_keys=True,
+                          )
+                      )
+
+                  for request_item in requests:
                       if request_item.get("type") == "community-submission":
                           print(
                               "VISIBLE COMMUNITY REQUEST:",
