@@ -296,7 +296,7 @@ jobs:
                           )
 
                   for request_item in requests:
-                      if request_item.get("type") != "community-submission":
+                      if request_item.get("type") not in {"community-inclusion", "community-submission"}:
                           continue
 
                       receiver = request_item.get("receiver", {})
@@ -337,7 +337,7 @@ jobs:
 
               if not matching_requests:
                   raise SystemExit(
-                      "No open pending community-submission request was "
+                      "No open pending Zenodo community-inclusion request was "
                       f"found for Zenodo record {record_id} and community "
                       f"{COMMUNITY_SLUG}. The depositor must first submit "
                       "the published record to the community."
