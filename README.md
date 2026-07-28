@@ -1,44 +1,63 @@
 # Automation in Biology
 
-This repository is the public submission and documentation portal for the
-**Automation in Biology** community on Zenodo.
+This repository is the public submission, curation-tracking, documentation, and governance portal for the **Automation in Biology** community on Zenodo.
 
-The community curates papers, software, datasets, protocols, book chapters,
-technical reports, hardware designs, presentations, and other scholarly
-outputs related to automation in biological research.
+The community curates papers, software, datasets, protocols, book chapters, technical reports, hardware designs, presentations, and other scholarly outputs related to automation in biological research.
+
+Zenodo remains the authoritative location for deposited files, metadata, licences, versions, DOIs, and community membership. GitHub provides structured submission issues, transparent curation status, validation, and the accepted-software registry.
 
 ## Submit a research output
 
-Research outputs are deposited and reviewed through Zenodo. This GitHub
-repository does not host submitted research files.
+Research outputs are deposited through Zenodo. This GitHub repository does not host submitted research files.
 
 ### Submission process
 
 1. Sign in to Zenodo.
-2. Create a new upload or open an existing Zenodo record.
+2. Create a new upload or open an existing published Zenodo record.
 3. Submit the record to the **Automation in Biology** community.
 4. Open a submission issue in this GitHub repository.
 5. Include the Zenodo record URL and requested metadata.
-6. Wait for the community curators to review the Zenodo submission.
-7. Respond to any requested changes on Zenodo or GitHub.
+6. Respond to any curator questions or requested changes.
+7. After review, a maintainer applies the `zenodo-approve` label.
+8. A protected GitHub Actions workflow accepts the pending Zenodo community-inclusion request, verifies public community membership, and applies the `accepted` label.
+9. The accepted-registry workflow independently verifies membership and updates the public software registry.
 
 [Open a GitHub submission issue](../../issues/new?template=submission.yml)
 
+## Automated Zenodo curation
+
+The repository includes a protected workflow for accepting reviewed Zenodo submissions:
+
+```text
+.github/workflows/accept-zenodo-community-request.yml
+```
+
+The workflow runs only when the repository owner applies the `zenodo-approve` label to an open submission issue. It:
+
+1. Extracts exactly one Zenodo record URL from the issue.
+2. Confirms the record is a published software output.
+3. Confirms that the issue includes an external GitHub software repository.
+4. Finds the open Zenodo `community-inclusion` request for the `biologyautomation` community.
+5. Accepts the request using the protected `zenodo-production` environment.
+6. Verifies that the record is publicly visible in the community.
+7. Removes `zenodo-approve` and applies `accepted`.
+8. Triggers the accepted-repository registry workflow.
+
+The Zenodo API token is stored only as the `ZENODO_API_TOKEN` secret in the protected `zenodo-production` environment. Contributors must never provide API tokens, passwords, or private credentials to curators.
+
+If automated acceptance is unavailable, a curator may accept the request manually in Zenodo. The `accepted` label must not be applied until public community membership has been verified.
+
 ## Submit software directly from GitHub
 
-Software authors can use the native GitHub–Zenodo integration to archive a
-versioned GitHub release and request inclusion in the **Automation in Biology**
-community.
+Software authors can use the native GitHub–Zenodo integration to archive a versioned GitHub release and request inclusion in the **Automation in Biology** community.
 
-The integration must be configured in the repository containing the software,
-not in this community-administration repository.
+The integration must be configured in the repository containing the software, not in this community-administration repository.
 
 ### Step 1: Add `.zenodo.json`
 
 Create a file named `.zenodo.json` in the root of the software repository.
 
-At minimum, include the software creators, title, description, licence,
-keywords, and the Automation in Biology community identifier:
+At minimum, include the software creators, title, description, licence, keywords, and the Automation in Biology community identifier:
 
 ```json
 {
@@ -66,8 +85,7 @@ keywords, and the Automation in Biology community identifier:
 }
 ```
 
-Replace all example metadata with accurate information for the software.
-The community identifier must remain:
+Replace all example metadata with accurate information for the software. The community identifier must remain:
 
 ```json
 {
@@ -86,43 +104,29 @@ The software repository owner must:
 5. Find the software repository.
 6. Enable the repository using the toggle.
 
-This must be configured by someone with the necessary access to the software
-repository and its Zenodo integration.
+This must be configured by someone with the necessary access to the software repository and its Zenodo integration.
 
 ### Step 3: Create a GitHub release
 
-After committing `.zenodo.json`, create a versioned GitHub release, for
-example:
+After committing `.zenodo.json`, create a versioned GitHub release, for example:
 
 ```text
 v1.0.0
 ```
 
-Zenodo will detect the new release, archive the released source code, create a
-software record, and mint a DOI.
+Zenodo will detect the new release, archive the released source code, create a software record, and mint a DOI.
 
-Creating commits or pushing ordinary branches is not sufficient. A published
-GitHub release is required.
+Creating commits or pushing ordinary branches is not sufficient. A published GitHub release is required.
 
-### Step 4: Community review
+### Step 4: Submit the record to the community
 
-The `.zenodo.json` file requests inclusion in the Automation in Biology
-community.
+After Zenodo creates the record, submit the published record to the **Automation in Biology** community. This creates a pending Zenodo `community-inclusion` request for curator review.
 
-The request is not automatically accepted. A community curator reviews the
-record and may:
-
-- Accept it
-- Request metadata changes
-- Decline it if it is outside the community scope
-
-The record appears in the community records list after the community request
-has been accepted.
+The request is not automatically approved merely because `.zenodo.json` names the community. A curator may accept it, request metadata changes, or decline it if it is outside the community scope.
 
 ### Step 5: Open a tracking issue
 
-After Zenodo creates the record, open a submission issue in this repository
-and provide:
+Open a submission issue in this repository and provide:
 
 - The Zenodo record URL
 - The software repository URL
@@ -145,11 +149,9 @@ Use a normal Zenodo deposit for outputs such as:
 - Experimental protocols
 - Hardware documentation requiring separately packaged files
 
-Each contributor should enable the integration using their own GitHub and
-Zenodo accounts.
+Each contributor should enable the integration using their own GitHub and Zenodo accounts.
 
-Contributors must never send Zenodo API tokens, GitHub credentials, passwords,
-or private access tokens to community curators.
+Contributors must never send Zenodo API tokens, GitHub credentials, passwords, or private access tokens to community curators.
 
 ## Eligible outputs
 
@@ -165,8 +167,7 @@ The community considers:
 - Hardware designs and documentation
 - Educational and training materials
 
-Submissions must have a clear and substantial connection to automation in
-biological research.
+Submissions must have a clear and substantial connection to automation in biological research.
 
 Relevant topics include:
 
@@ -188,14 +189,12 @@ Relevant topics include:
 ## Important submission rules
 
 - Submitters must deposit their own files through their own Zenodo account.
-- Do not upload confidential, sensitive, personal, restricted, or unpublished
-  research files to GitHub.
+- Do not upload confidential, sensitive, personal, restricted, or unpublished research files to GitHub.
 - A GitHub issue does not constitute acceptance into the Zenodo community.
+- Applying `zenodo-approve` authorises the protected acceptance workflow; it is a curator-only action.
 - Community inclusion is decided by the Zenodo community curators.
-- Acceptance indicates relevance to the community scope; it is not peer review
-  or scientific endorsement.
-- Submitters remain responsible for authorship, licensing, ethics, privacy,
-  copyright, and record accuracy.
+- Acceptance indicates relevance to the community scope; it is not peer review or scientific endorsement.
+- Submitters remain responsible for authorship, licensing, ethics, privacy, copyright, and record accuracy.
 
 ## Documentation
 
@@ -219,20 +218,18 @@ This repository contains:
 - Submission forms
 - Documentation
 - Validation workflows
+- Protected Zenodo acceptance automation
 - Public issue-based submission tracking
+- Accepted-software registry automation
 - Community governance information
 
-It is not an archival repository for submitted research outputs. Zenodo is the
-authoritative location for deposited records, files, licences, versions, and
-persistent identifiers.
+It is not an archival repository for submitted research outputs. Zenodo is the authoritative location for deposited records, files, licences, versions, DOIs, and community membership.
 
 ## Licence
 
-The documentation and templates in this repository are available under the
-MIT Licence included in the [LICENSE](LICENSE) file.
+The documentation and templates in this repository are available under the MIT Licence included in the [LICENSE](LICENSE) file.
 
-Research outputs deposited on Zenodo retain the licences selected by their
-respective depositors.
+Research outputs deposited on Zenodo retain the licences selected by their respective depositors.
 
 ## Accepted repository registry
 
@@ -241,6 +238,4 @@ Accepted software repositories are recorded in two formats:
 - [Accepted repositories](ACCEPTED_REPOSITORIES.md)
 - [Machine-readable registry](accepted-repositories.json)
 
-When a curator applies the `accepted` label to a submission issue, a GitHub
-Actions workflow verifies that the Zenodo record is present in the
-`biologyautomation` community and opens a pull request updating the registry.
+After the Zenodo acceptance workflow applies the `accepted` label, a second GitHub Actions workflow independently verifies that the record is publicly present in the `biologyautomation` community, opens a generated registry pull request, and merges that pull request after safety checks.
