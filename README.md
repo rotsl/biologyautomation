@@ -205,3 +205,14 @@ MIT Licence included in the [LICENSE](LICENSE) file.
 
 Research outputs deposited on Zenodo retain the licences selected by their
 respective depositors.
+
+## Accepted repository registry
+
+Accepted software repositories are recorded in two formats:
+
+- [Accepted repositories](ACCEPTED_REPOSITORIES.md)
+- [Machine-readable registry](accepted-repositories.json)
+
+When a curator applies the `accepted` label to a submission issue, a GitHub
+Actions workflow verifies that the Zenodo record is present in the
+`biologyautomation` community and opens a pull request updating the registry.

@@ -1,0 +1,396 @@
+name: Update accepted repositories
+
+on:
+  issues:
+    types:
+      - labeled
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: accepted-repository-registry
+  cancel-in-progress: false
+
+jobs:
+  update-registry:
+    name: Add accepted repository to registry
+    if: github.event.label.name == 'accepted'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract and verify submission
+        id: submission
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          CURRENT_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          import urllib.parse
+          import urllib.request
+          from datetime import date
+          from pathlib import Path
+
+          issue_body = os.environ["ISSUE_BODY"]
+          issue_number = int(os.environ["ISSUE_NUMBER"])
+          issue_url = os.environ["ISSUE_URL"]
+          current_repository = os.environ["CURRENT_REPOSITORY"].lower()
+
+          # ----------------------------------------------------------
+          # Extract the Zenodo record ID
+          # ----------------------------------------------------------
+
+          zenodo_match = re.search(
+              r"https://zenodo\.org/records/(\d+)",
+              issue_body,
+              flags=re.IGNORECASE,
+          )
+
+          if not zenodo_match:
+              raise SystemExit(
+                  "No Zenodo record URL was found in the submission issue."
+              )
+
+          zenodo_id = zenodo_match.group(1)
+          zenodo_url = f"https://zenodo.org/records/{zenodo_id}"
+
+          # ----------------------------------------------------------
+          # Extract a GitHub repository URL
+          # ----------------------------------------------------------
+
+          github_matches = re.findall(
+              r"https://github\.com/([^/\s]+)/([^/\s?#]+)",
+              issue_body,
+              flags=re.IGNORECASE,
+          )
+
+          repository_url = None
+          repository_name = None
+
+          for owner, repository in github_matches:
+              repository = repository.rstrip(".,)")
+              full_name = f"{owner}/{repository}"
+
+              if full_name.lower() != current_repository:
+                  repository_name = full_name
+                  repository_url = f"https://github.com/{full_name}"
+                  break
+
+          if not repository_url:
+              raise SystemExit(
+                  "No related GitHub repository URL was found in the issue."
+              )
+
+          # ----------------------------------------------------------
+          # Retrieve the public Zenodo record
+          # ----------------------------------------------------------
+
+          record_api_url = f"https://zenodo.org/api/records/{zenodo_id}"
+
+          request = urllib.request.Request(
+              record_api_url,
+              headers={
+                  "Accept": "application/json",
+                  "User-Agent": "biologyautomation-registry-workflow",
+              },
+          )
+
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  record = json.load(response)
+          except Exception as exc:
+              raise SystemExit(
+                  f"Could not retrieve Zenodo record {zenodo_id}: {exc}"
+              )
+
+          metadata = record.get("metadata", {})
+          title = metadata.get("title") or repository_name
+          doi = record.get("doi") or metadata.get("doi") or ""
+
+          # ----------------------------------------------------------
+          # Confirm accepted community membership
+          # ----------------------------------------------------------
+
+          query = urllib.parse.urlencode(
+              {
+                  "communities": "biologyautomation",
+                  "q": f"id:{zenodo_id}",
+                  "size": 1,
+              }
+          )
+
+          community_api_url = (
+              "https://zenodo.org/api/records/?" + query
+          )
+
+          community_request = urllib.request.Request(
+              community_api_url,
+              headers={
+                  "Accept": "application/json",
+                  "User-Agent": "biologyautomation-registry-workflow",
+              },
+          )
+
+          try:
+              with urllib.request.urlopen(
+                  community_request,
+                  timeout=30,
+              ) as response:
+                  community_result = json.load(response)
+          except Exception as exc:
+              raise SystemExit(
+                  f"Could not check Zenodo community membership: {exc}"
+              )
+
+          hits = community_result.get("hits", {})
+          total = hits.get("total", 0)
+
+          # Some Zenodo responses represent total as an object.
+          if isinstance(total, dict):
+              total = total.get("value", 0)
+
+          if int(total) < 1:
+              raise SystemExit(
+                  "The Zenodo record is not currently visible in the "
+                  "biologyautomation community. Accept it on Zenodo before "
+                  "adding the accepted label on GitHub."
+              )
+
+          # ----------------------------------------------------------
+          # Update the JSON registry
+          # ----------------------------------------------------------
+
+          registry_path = Path("accepted-repositories.json")
+
+          if registry_path.exists():
+              registry = json.loads(
+                  registry_path.read_text(encoding="utf-8")
+              )
+          else:
+              registry = {
+                  "community": "biologyautomation",
+                  "repositories": [],
+              }
+
+          repositories = registry.setdefault("repositories", [])
+
+          new_entry = {
+              "title": title,
+              "repository": repository_name,
+              "repository_url": repository_url,
+              "zenodo_record_id": zenodo_id,
+              "zenodo_url": zenodo_url,
+              "doi": doi,
+              "github_issue": issue_number,
+              "github_issue_url": issue_url,
+              "accepted_date": date.today().isoformat(),
+          }
+
+          # Update an existing repository/record instead of duplicating it.
+          updated = False
+
+          for index, entry in enumerate(repositories):
+              same_record = (
+                  str(entry.get("zenodo_record_id")) == zenodo_id
+              )
+              same_repository = (
+                  entry.get("repository", "").lower()
+                  == repository_name.lower()
+              )
+
+              if same_record or same_repository:
+                  repositories[index] = new_entry
+                  updated = True
+                  break
+
+          if not updated:
+              repositories.append(new_entry)
+
+          repositories.sort(
+              key=lambda entry: entry.get("title", "").lower()
+          )
+
+          registry_path.write_text(
+              json.dumps(registry, indent=2, ensure_ascii=False) + "\n",
+              encoding="utf-8",
+          )
+
+          # ----------------------------------------------------------
+          # Regenerate the Markdown table
+          # ----------------------------------------------------------
+
+          def escape_cell(value):
+              return str(value or "").replace("|", r"\|").replace("\n", " ")
+
+          lines = [
+              "# Accepted repositories",
+              "",
+              "This file lists software repositories accepted into the",
+              "**Automation in Biology** Zenodo community.",
+              "",
+              "The registry is generated from `accepted-repositories.json`.",
+              "",
+              "| Software | Repository | Zenodo record | DOI | GitHub issue | Accepted |",
+              "|---|---|---|---|---|---|",
+          ]
+
+          for entry in repositories:
+              title_text = escape_cell(entry["title"])
+              repository_text = escape_cell(entry["repository"])
+              record_id = escape_cell(entry["zenodo_record_id"])
+              doi_text = escape_cell(entry.get("doi") or "—")
+              issue = escape_cell(entry["github_issue"])
+              accepted_date = escape_cell(entry["accepted_date"])
+
+              repository_link = (
+                  f"[{repository_text}]({entry['repository_url']})"
+              )
+              zenodo_link = (
+                  f"[Zenodo {record_id}]({entry['zenodo_url']})"
+              )
+              issue_link = (
+                  f"[#{issue}]({entry['github_issue_url']})"
+              )
+
+              if entry.get("doi"):
+                  doi_link = (
+                      f"[{doi_text}](https://doi.org/{entry['doi']})"
+                  )
+              else:
+                  doi_link = "—"
+
+              lines.append(
+                  f"| {title_text} | {repository_link} | "
+                  f"{zenodo_link} | {doi_link} | {issue_link} | "
+                  f"{accepted_date} |"
+              )
+
+          Path("ACCEPTED_REPOSITORIES.md").write_text(
+              "\n".join(lines) + "\n",
+              encoding="utf-8",
+          )
+
+          # Write safe outputs.
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          with output_path.open("a", encoding="utf-8") as output:
+              output.write(f"zenodo_id={zenodo_id}\n")
+              output.write(f"repository={repository_name}\n")
+              output.write(f"title={title}\n")
+
+          print(
+              f"Registry prepared for {repository_name}, "
+              f"Zenodo record {zenodo_id}."
+          )
+          PY
+
+      - name: Create registry branch
+        id: changes
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- \
+            accepted-repositories.json \
+            ACCEPTED_REPOSITORIES.md
+          then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BRANCH="registry/accepted-issue-${ISSUE_NUMBER}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git switch -C "$BRANCH"
+
+          git add \
+            accepted-repositories.json \
+            ACCEPTED_REPOSITORIES.md
+
+          git commit \
+            -m "registry: add accepted repository from issue #${ISSUE_NUMBER}"
+
+          git push \
+            --force-with-lease \
+            origin \
+            "HEAD:${BRANCH}"
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Open registry pull request
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.changes.outputs.branch }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          REPOSITORY_NAME: ${{ steps.submission.outputs.repository }}
+          ZENODO_ID: ${{ steps.submission.outputs.zenodo_id }}
+        run: |
+          set -euo pipefail
+
+          EXISTING_PR="$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head "$BRANCH" \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -n "$EXISTING_PR" ]]; then
+            PR_URL="$(
+              gh pr view "$EXISTING_PR" \
+                --repo "$GITHUB_REPOSITORY" \
+                --json url \
+                --jq '.url'
+            )"
+          else
+            PR_URL="$(
+              gh pr create \
+                --repo "$GITHUB_REPOSITORY" \
+                --base main \
+                --head "$BRANCH" \
+                --title "Add accepted repository from issue #${ISSUE_NUMBER}" \
+                --body "Adds **${REPOSITORY_NAME}** to the accepted repository registry.
+
+          Zenodo record: https://zenodo.org/records/${ZENODO_ID}
+
+          Source submission: ${ISSUE_URL}
+
+          This pull request was generated after the \`accepted\` label was applied."
+            )"
+          fi
+
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "The accepted repository registry update is ready for review: ${PR_URL}"
+
+      - name: Report unchanged registry
+        if: steps.changes.outputs.changed != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "This repository is already present in the accepted repository registry; no registry change was required."
