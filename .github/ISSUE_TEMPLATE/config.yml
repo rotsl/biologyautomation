@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Automation in Biology on Zenodo
+    url: https://zenodo.org/communities/biologyautomation
+    about: View the community and submit records through Zenodo.
+
+  - name: Zenodo help
+    url: https://help.zenodo.org/
+    about: Read official guidance about deposits and community submissions.
+
+  - name: Private security report
+    url: https://github.com/rotsl/biologyautomation/security/advisories/new
+    about: Privately report a security vulnerability in this repository.

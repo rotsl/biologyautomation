@@ -1,0 +1,50 @@
+name: Report a repository problem
+description: Report an error in the documentation, forms, or GitHub workflows
+title: "[Repository]: "
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for problems with this GitHub repository.
+
+        Do not use this form to submit a research output. Research-output
+        submissions must use the submission form.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - README
+        - Submission guide
+        - Curation policy
+        - Submission issue form
+        - GitHub Actions workflow
+        - Security documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Explain what is incorrect, unclear, or not working.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Suggested correction
+      description: Describe the expected wording or behaviour.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I have not included credentials, confidential data, or sensitive personal information.
+          required: true

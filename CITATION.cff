@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "Please cite the relevant research records from the Zenodo community rather than this administrative repository."
+title: "Automation in Biology Community Repository"
+type: software
+authors:
+  - name: rotsl
+repository-code: "https://github.com/rotsl/biologyautomation"
+url: "https://zenodo.org/communities/biologyautomation"
+license: MIT
+abstract: >-
+  Submission guidance, curation policies, issue forms, and repository
+  workflows for the Automation in Biology Zenodo community.
+keywords:
+  - automation in biology
+  - laboratory automation
+  - research curation
+  - Zenodo

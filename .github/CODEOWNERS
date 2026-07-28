@@ -1,0 +1,11 @@
+# Default owner for all repository changes
+* @rotsl
+
+# Submission, governance, and workflow files
+/.github/ @rotsl
+/docs/ @rotsl
+/README.md @rotsl
+/CONTRIBUTING.md @rotsl
+/CODE_OF_CONDUCT.md @rotsl
+/SECURITY.md @rotsl
+/LICENSE @rotsl

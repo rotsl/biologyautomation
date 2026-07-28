@@ -1,0 +1,133 @@
+name: Submit a research output
+description: Request consideration for the Automation in Biology Zenodo community
+title: "[Submission]: "
+labels:
+  - submission
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for submitting a research output to the Automation in Biology community.
+
+        Deposit the output on Zenodo and submit it to the `biologyautomation`
+        community before completing this form.
+
+        Do not upload research files, confidential information, personal data,
+        credentials, API keys, or unpublished sensitive material to this issue.
+
+  - type: input
+    id: title
+    attributes:
+      label: Title
+      description: Enter the complete title of the research output.
+      placeholder: Automated sample preparation for...
+    validations:
+      required: true
+
+  - type: input
+    id: zenodo_url
+    attributes:
+      label: Zenodo record or review URL
+      description: Provide the URL for the Zenodo record or submission request.
+      placeholder: https://zenodo.org/records/1234567
+    validations:
+      required: true
+
+  - type: dropdown
+    id: resource_type
+    attributes:
+      label: Resource type
+      description: Select the most appropriate output type.
+      options:
+        - Journal article or preprint
+        - Software
+        - Dataset
+        - Protocol or workflow
+        - Book chapter
+        - Technical report
+        - Hardware design
+        - Poster or presentation
+        - Educational material
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: authors
+    attributes:
+      label: Authors or creators
+      description: List the principal authors or creators and ORCID identifiers where available.
+      placeholder: |
+        - Family name, Given name — ORCID
+        - Family name, Given name — ORCID
+    validations:
+      required: true
+
+  - type: textarea
+    id: relevance
+    attributes:
+      label: Relevance to automation in biology
+      description: Explain specifically how automation is central to this output.
+      placeholder: |
+        This work develops, evaluates, or applies...
+    validations:
+      required: true
+
+  - type: textarea
+    id: abstract
+    attributes:
+      label: Brief description
+      description: Provide a short summary of the output and its contribution.
+      placeholder: Describe the research output in approximately 100–250 words.
+    validations:
+      required: true
+
+  - type: input
+    id: repository
+    attributes:
+      label: Related repository or project page
+      description: Optional link to source code, data, documentation, or a project website.
+      placeholder: https://github.com/organisation/repository
+
+  - type: input
+    id: licence
+    attributes:
+      label: Licence or rights statement
+      description: Enter the licence or rights statement selected on Zenodo.
+      placeholder: CC-BY-4.0, MIT, Apache-2.0, GPL-3.0, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: keywords
+    attributes:
+      label: Keywords
+      description: List the main keywords associated with the record.
+      placeholder: |
+        laboratory automation
+        robotic experimentation
+        automated microscopy
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes for curators
+      description: Add relevant context, related publications, funding, or special considerations.
+
+  - type: checkboxes
+    id: declarations
+    attributes:
+      label: Declarations
+      options:
+        - label: I have submitted this record to the Automation in Biology community on Zenodo.
+          required: true
+        - label: I am authorised to submit this research output and its metadata.
+          required: true
+        - label: The Zenodo record contains an appropriate licence or rights statement.
+          required: true
+        - label: The submission does not expose credentials, confidential information, or unlawfully shared personal data.
+          required: true
+        - label: I understand that community inclusion is curation, not peer review or scientific endorsement.
+          required: true

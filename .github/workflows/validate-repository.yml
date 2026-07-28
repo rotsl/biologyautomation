@@ -1,0 +1,177 @@
+name: Validate repository
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate files and configuration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check required files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            "README.md"
+            "CONTRIBUTING.md"
+            "CODE_OF_CONDUCT.md"
+            "SECURITY.md"
+            "LICENSE"
+            "docs/SUBMISSION_GUIDE.md"
+            "docs/CURATION_POLICY.md"
+            "submissions/README.md"
+            ".github/ISSUE_TEMPLATE/submission.yml"
+            ".github/ISSUE_TEMPLATE/repository-problem.yml"
+            ".github/ISSUE_TEMPLATE/config.yml"
+            ".github/pull_request_template.md"
+            ".github/CODEOWNERS"
+          )
+
+          missing=0
+
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "::error file=$file::Required file is missing"
+              missing=1
+            else
+              echo "Found: $file"
+            fi
+          done
+
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Check for empty required files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            "README.md"
+            "CONTRIBUTING.md"
+            "CODE_OF_CONDUCT.md"
+            "SECURITY.md"
+            "LICENSE"
+            "docs/SUBMISSION_GUIDE.md"
+            "docs/CURATION_POLICY.md"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [[ ! -s "$file" ]]; then
+              echo "::error file=$file::Required file is empty"
+              exit 1
+            fi
+          done
+
+      - name: Check for accidentally committed secret files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden_names=(
+            ".env"
+            "id_rsa"
+            "id_ed25519"
+          )
+
+          for name in "${forbidden_names[@]}"; do
+            matches="$(find . -type f -name "$name" -not -path "./.git/*" || true)"
+
+            if [[ -n "$matches" ]]; then
+              echo "::error::Potentially sensitive file detected:"
+              echo "$matches"
+              exit 1
+            fi
+          done
+
+          forbidden_patterns=(
+            "*.pem"
+            "*.p12"
+            "*.pfx"
+            "*credentials*.json"
+            "*secret*.txt"
+          )
+
+          for pattern in "${forbidden_patterns[@]}"; do
+            matches="$(find . -type f -name "$pattern" -not -path "./.git/*" || true)"
+
+            if [[ -n "$matches" ]]; then
+              echo "::error::Potentially sensitive file detected:"
+              echo "$matches"
+              exit 1
+            fi
+          done
+
+      - name: Install YAML parser
+        run: |
+          python -m pip install \
+            --disable-pip-version-check \
+            --no-cache-dir \
+            "PyYAML==6.0.2"
+
+      - name: Validate YAML files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          import yaml
+
+          files = [
+              Path(".github/ISSUE_TEMPLATE/submission.yml"),
+              Path(".github/ISSUE_TEMPLATE/repository-problem.yml"),
+              Path(".github/ISSUE_TEMPLATE/config.yml"),
+              Path(".github/workflows/validate-repository.yml"),
+          ]
+
+          failed = False
+
+          for path in files:
+              try:
+                  with path.open("r", encoding="utf-8") as handle:
+                      yaml.safe_load(handle)
+                  print(f"Validated: {path}")
+              except Exception as exc:
+                  failed = True
+                  print(f"Invalid YAML in {path}: {exc}", file=sys.stderr)
+
+          if failed:
+              raise SystemExit(1)
+          PY
+
+      - name: Check required community references
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          grep -q "biologyautomation" README.md
+          grep -q "biologyautomation" docs/SUBMISSION_GUIDE.md
+          grep -q "https://zenodo.org/communities/biologyautomation" README.md
+
+      - name: Confirm submission form has required declarations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          file=".github/ISSUE_TEMPLATE/submission.yml"
+
+          grep -q "Zenodo record or review URL" "$file"
+          grep -q "Relevance to automation in biology" "$file"
+          grep -q "I am authorised to submit" "$file"
+          grep -q "community inclusion is curation" "$file"
