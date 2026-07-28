@@ -1,5 +1,11 @@
 # Automation in Biology
 
+<p align="center">
+  <img src="docs/assets/automation_bio_logo.png"
+       alt="Automation in Biology logo"
+       width="320">
+</p>
+
 This repository is the public submission, curation-tracking, documentation, and governance portal for the **Automation in Biology** community on Zenodo.
 
 The community curates papers, software, datasets, protocols, book chapters, technical reports, hardware designs, presentations, and other scholarly outputs related to automation in biological research.
