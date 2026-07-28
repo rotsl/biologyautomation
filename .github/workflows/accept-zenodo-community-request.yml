@@ -261,6 +261,23 @@ jobs:
                   requests = hits_container.get("hits", [])
 
                   for request_item in requests:
+                      if request_item.get("type") == "community-submission":
+                          print(
+                              "VISIBLE COMMUNITY REQUEST:",
+                              json.dumps(
+                                  {
+                                      "id": request_item.get("id"),
+                                      "status": request_item.get("status"),
+                                      "is_open": request_item.get("is_open"),
+                                      "is_closed": request_item.get("is_closed"),
+                                      "topic": request_item.get("topic"),
+                                      "receiver": request_item.get("receiver"),
+                                  },
+                                  sort_keys=True,
+                              ),
+                          )
+
+                  for request_item in requests:
                       if request_item.get("type") != "community-submission":
                           continue
 
