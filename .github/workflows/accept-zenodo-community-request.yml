@@ -259,6 +259,7 @@ jobs:
 
                   hits_container = result.get("hits", {})
                   requests = hits_container.get("hits", [])
+                  print(f"ZENODO_VISIBLE_REQUEST_COUNT={len(requests)}")
 
                   for request_item in requests:
                       if request_item.get("type") == "community-submission":
