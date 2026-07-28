@@ -1,4 +1,16 @@
 {
   "community": "biologyautomation",
-  "repositories": []
+  "repositories": [
+    {
+      "title": "Automator: Automated Imaging of Round Petri Dishes/Plates (90-100 mm)",
+      "repository": "rotsl/Automator",
+      "repository_url": "https://github.com/rotsl/Automator",
+      "zenodo_record_id": "21609180",
+      "zenodo_url": "https://zenodo.org/records/21609180",
+      "doi": "10.5281/zenodo.21609180",
+      "github_issue": 3,
+      "github_issue_url": "https://github.com/rotsl/biologyautomation/issues/3",
+      "accepted_date": "2026-07-28"
+    }
+  ]
 }
