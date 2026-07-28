@@ -32,3 +32,6 @@ venv/
 *.tmp
 *.temp
 *.log
+
+# Private maintainer runbook
+mydoc.md
