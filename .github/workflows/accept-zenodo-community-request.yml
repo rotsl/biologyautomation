@@ -1,0 +1,456 @@
+name: Accept Zenodo community submission
+
+on:
+  issues:
+    types:
+      - labeled
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: zenodo-accept-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  accept-community-submission:
+    name: Accept pending Zenodo community request
+
+    if: >-
+      github.event.label.name == 'zenodo-approve' &&
+      github.event.issue.state == 'open' &&
+      github.actor == 'rotsl'
+
+    runs-on: ubuntu-latest
+
+    environment: zenodo-production
+
+    steps:
+      - name: Extract and validate submission
+        id: submission
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ZENODO_API_TOKEN: ${{ secrets.ZENODO_API_TOKEN }}
+          COMMUNITY_SLUG: biologyautomation
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ZENODO_API_TOKEN:-}" ]]; then
+            echo "::error::ZENODO_API_TOKEN is not configured."
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          API_BASE = "https://zenodo.org/api"
+          COMMUNITY_SLUG = os.environ["COMMUNITY_SLUG"]
+          ISSUE_BODY = os.environ.get("ISSUE_BODY", "")
+          ISSUE_NUMBER = os.environ["ISSUE_NUMBER"]
+          ISSUE_URL = os.environ["ISSUE_URL"]
+          TOKEN = os.environ["ZENODO_API_TOKEN"]
+
+          headers = {
+              "Accept": "application/json",
+              "Authorization": f"Bearer {TOKEN}",
+              "User-Agent": "biologyautomation-community-curation-workflow",
+          }
+
+          def api_request(url, method="GET", payload=None):
+              data = None
+              request_headers = dict(headers)
+
+              if payload is not None:
+                  data = json.dumps(payload).encode("utf-8")
+                  request_headers["Content-Type"] = "application/json"
+
+              request = urllib.request.Request(
+                  url,
+                  data=data,
+                  headers=request_headers,
+                  method=method,
+              )
+
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      body = response.read().decode("utf-8")
+
+                      if not body:
+                          return {}
+
+                      return json.loads(body)
+
+              except urllib.error.HTTPError as exc:
+                  error_body = exc.read().decode("utf-8", errors="replace")
+
+                  raise SystemExit(
+                      f"Zenodo API request failed: {method} {url}\n"
+                      f"HTTP status: {exc.code}\n"
+                      f"Response: {error_body}"
+                  ) from exc
+
+              except urllib.error.URLError as exc:
+                  raise SystemExit(
+                      f"Could not connect to Zenodo: {exc}"
+                  ) from exc
+
+          # ----------------------------------------------------------
+          # Extract exactly one Zenodo record URL
+          # ----------------------------------------------------------
+
+          record_matches = sorted(
+              set(
+                  re.findall(
+                      r"https://zenodo\.org/records/(\d+)",
+                      ISSUE_BODY,
+                      flags=re.IGNORECASE,
+                  )
+              )
+          )
+
+          if not record_matches:
+              raise SystemExit(
+                  "No Zenodo record URL was found in the issue body."
+              )
+
+          if len(record_matches) != 1:
+              raise SystemExit(
+                  "The issue must contain exactly one distinct Zenodo "
+                  "record URL."
+              )
+
+          record_id = record_matches[0]
+          record_url = f"https://zenodo.org/records/{record_id}"
+
+          # ----------------------------------------------------------
+          # Require a related external GitHub software repository
+          # ----------------------------------------------------------
+
+          github_matches = re.findall(
+              r"https://github\.com/([^/\s]+)/([^/\s?#]+)",
+              ISSUE_BODY,
+              flags=re.IGNORECASE,
+          )
+
+          external_repositories = []
+
+          for owner, repository in github_matches:
+              repository = repository.rstrip(".,)")
+              full_name = f"{owner}/{repository}"
+
+              if full_name.lower() != "rotsl/biologyautomation":
+                  external_repositories.append(full_name)
+
+          external_repositories = sorted(set(external_repositories))
+
+          if not external_repositories:
+              raise SystemExit(
+                  "No external GitHub software repository URL was found "
+                  "in the issue."
+              )
+
+          repository_name = external_repositories[0]
+
+          # ----------------------------------------------------------
+          # Retrieve the public Zenodo record
+          # ----------------------------------------------------------
+
+          record = api_request(f"{API_BASE}/records/{record_id}")
+          metadata = record.get("metadata", {})
+
+          resource_type = metadata.get("resource_type", {})
+          resource_type_id = ""
+
+          if isinstance(resource_type, dict):
+              resource_type_id = str(resource_type.get("id", "")).lower()
+          elif resource_type:
+              resource_type_id = str(resource_type).lower()
+
+          legacy_upload_type = str(
+              metadata.get("upload_type", "")
+          ).lower()
+
+          if (
+              resource_type_id != "software"
+              and legacy_upload_type != "software"
+          ):
+              raise SystemExit(
+                  "The Zenodo record is not identified as software. "
+                  f"resource_type={resource_type_id!r}, "
+                  f"upload_type={legacy_upload_type!r}"
+              )
+
+          title = metadata.get("title") or repository_name
+
+          # ----------------------------------------------------------
+          # Stop safely if the record is already in the community
+          # ----------------------------------------------------------
+
+          membership_query = urllib.parse.urlencode(
+              {
+                  "communities": COMMUNITY_SLUG,
+                  "q": f"id:{record_id}",
+                  "size": 1,
+              }
+          )
+
+          membership_result = api_request(
+              f"{API_BASE}/records/?{membership_query}"
+          )
+
+          total = membership_result.get("hits", {}).get("total", 0)
+
+          if isinstance(total, dict):
+              total = total.get("value", 0)
+
+          already_member = int(total or 0) > 0
+
+          # ----------------------------------------------------------
+          # Resolve the community's internal UUID
+          # ----------------------------------------------------------
+
+          community = api_request(
+              f"{API_BASE}/communities/{COMMUNITY_SLUG}"
+          )
+
+          community_id = str(community.get("id", ""))
+
+          if not community_id:
+              raise SystemExit(
+                  "Zenodo did not return an internal ID for the "
+                  f"{COMMUNITY_SLUG} community."
+              )
+
+          request_id = ""
+          request_status = ""
+
+          if not already_member:
+              # ------------------------------------------------------
+              # Search all requests visible to the curator token
+              # ------------------------------------------------------
+
+              matching_requests = []
+              page = 1
+              max_pages = 20
+
+              while page <= max_pages:
+                  query = urllib.parse.urlencode(
+                      {
+                          "page": page,
+                          "size": 100,
+                          "sort": "newest",
+                      }
+                  )
+
+                  result = api_request(
+                      f"{API_BASE}/requests?{query}"
+                  )
+
+                  hits_container = result.get("hits", {})
+                  requests = hits_container.get("hits", [])
+
+                  for request_item in requests:
+                      if request_item.get("type") != "community-submission":
+                          continue
+
+                      receiver = request_item.get("receiver", {})
+                      receiver_community = str(
+                          receiver.get("community", "")
+                      )
+
+                      if receiver_community not in {
+                          community_id,
+                          COMMUNITY_SLUG,
+                      }:
+                          continue
+
+                      topic = request_item.get("topic", {})
+                      topic_record = str(topic.get("record", ""))
+
+                      if topic_record != str(record_id):
+                          continue
+
+                      status = str(
+                          request_item.get("status", "")
+                      ).lower()
+
+                      if status not in {"submitted", "open"}:
+                          continue
+
+                      if request_item.get("is_closed") is True:
+                          continue
+
+                      matching_requests.append(request_item)
+
+                  links = result.get("links", {})
+
+                  if not links.get("next") or not requests:
+                      break
+
+                  page += 1
+
+              if not matching_requests:
+                  raise SystemExit(
+                      "No open pending community-submission request was "
+                      f"found for Zenodo record {record_id} and community "
+                      f"{COMMUNITY_SLUG}. The depositor must first submit "
+                      "the published record to the community."
+                  )
+
+              if len(matching_requests) > 1:
+                  request_ids = [
+                      str(item.get("id"))
+                      for item in matching_requests
+                  ]
+
+                  raise SystemExit(
+                      "Multiple open Zenodo requests matched this record: "
+                      + ", ".join(request_ids)
+                  )
+
+              pending_request = matching_requests[0]
+              request_id = str(pending_request["id"])
+              request_status = str(pending_request.get("status", ""))
+
+              actions = pending_request.get("links", {}).get(
+                  "actions",
+                  {},
+              )
+
+              accept_url = actions.get("accept")
+
+              if not accept_url:
+                  accept_url = (
+                      f"{API_BASE}/requests/{request_id}/actions/accept"
+                  )
+
+              # ------------------------------------------------------
+              # Accept the pending request
+              # ------------------------------------------------------
+
+              acceptance_payload = {
+                  "payload": {
+                      "content": (
+                          "Accepted through the Automation in Biology "
+                          f"GitHub curation workflow for issue "
+                          f"#{ISSUE_NUMBER}: {ISSUE_URL}"
+                      ),
+                      "format": "html",
+                  }
+              }
+
+              accepted_request = api_request(
+                  accept_url,
+                  method="POST",
+                  payload=acceptance_payload,
+              )
+
+              accepted_status = str(
+                  accepted_request.get("status", "")
+              ).lower()
+
+              if accepted_status != "accepted":
+                  raise SystemExit(
+                      "Zenodo did not report the request as accepted. "
+                      f"Returned status: {accepted_status!r}"
+                  )
+
+              # ------------------------------------------------------
+              # Wait for public community membership to be indexed
+              # ------------------------------------------------------
+
+              verified = False
+
+              for attempt in range(12):
+                  membership_result = api_request(
+                      f"{API_BASE}/records/?{membership_query}"
+                  )
+
+                  total = membership_result.get(
+                      "hits",
+                      {},
+                  ).get("total", 0)
+
+                  if isinstance(total, dict):
+                      total = total.get("value", 0)
+
+                  if int(total or 0) > 0:
+                      verified = True
+                      break
+
+                  if attempt < 11:
+                      time.sleep(5)
+
+              if not verified:
+                  raise SystemExit(
+                      "Zenodo accepted the request, but the record was "
+                      "not yet visible in the public community search "
+                      "after 60 seconds. Do not apply the accepted label "
+                      "manually until membership has been confirmed."
+                  )
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+
+          with output_path.open("a", encoding="utf-8") as output:
+              output.write(f"record_id={record_id}\n")
+              output.write(f"record_url={record_url}\n")
+              output.write(f"repository={repository_name}\n")
+              output.write(f"title={title}\n")
+              output.write(f"request_id={request_id}\n")
+              output.write(
+                  f"already_member={'true' if already_member else 'false'}\n"
+              )
+
+          if already_member:
+              print(
+                  f"Zenodo record {record_id} is already present in "
+                  f"the {COMMUNITY_SLUG} community."
+              )
+          else:
+              print(
+                  f"Accepted Zenodo request {request_id} for record "
+                  f"{record_id}."
+              )
+          PY
+
+      - name: Mark the GitHub submission as accepted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RECORD_ID: ${{ steps.submission.outputs.record_id }}
+          RECORD_URL: ${{ steps.submission.outputs.record_url }}
+          REPOSITORY_NAME: ${{ steps.submission.outputs.repository }}
+          REQUEST_ID: ${{ steps.submission.outputs.request_id }}
+          ALREADY_MEMBER: ${{ steps.submission.outputs.already_member }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$ALREADY_MEMBER" == "true" ]]; then
+            MESSAGE="Zenodo record ${RECORD_ID} was already present in the \`biologyautomation\` community. Community membership was verified automatically."
+          else
+            MESSAGE="The pending Zenodo community request was accepted automatically and public membership was verified.
+
+          Zenodo record: ${RECORD_URL}
+          Zenodo request ID: \`${REQUEST_ID}\`
+          Software repository: \`${REPOSITORY_NAME}\`"
+          fi
+
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "$MESSAGE"
+
+          gh issue edit "$ISSUE_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --remove-label "zenodo-approve" \
+            --add-label "accepted"
