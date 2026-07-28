@@ -1,0 +1,201 @@
+name: Deploy community website
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy GitHub Pages
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install MkDocs
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            "mkdocs>=1.6,<2" \
+            "mkdocs-material>=9,<10"
+
+      - name: Prepare temporary website
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf .pages-src .pages-site
+          mkdir -p .pages-src/docs/assets
+
+          cp README.md .pages-src/index.md
+          cp ACCEPTED_REPOSITORIES.md \
+            .pages-src/accepted-repositories.md
+
+          if [ -f docs/SUBMISSION_GUIDE.md ]; then
+            cp docs/SUBMISSION_GUIDE.md \
+              .pages-src/submission-guide.md
+          fi
+
+          if [ -f docs/CURATION_POLICY.md ]; then
+            cp docs/CURATION_POLICY.md \
+              .pages-src/curation-policy.md
+          fi
+
+          if [ -f CONTRIBUTING.md ]; then
+            cp CONTRIBUTING.md .pages-src/contributing.md
+          fi
+
+          if [ -f CODE_OF_CONDUCT.md ]; then
+            cp CODE_OF_CONDUCT.md \
+              .pages-src/code-of-conduct.md
+          fi
+
+          if [ -f SECURITY.md ]; then
+            cp SECURITY.md .pages-src/security.md
+          fi
+
+          if [ -f docs/assets/automation_bio_logo.png ]; then
+            cp docs/assets/automation_bio_logo.png \
+              .pages-src/docs/assets/automation_bio_logo.png
+          fi
+
+      - name: Adapt repository links for the website
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path(".pages-src")
+
+          replacements = {
+              "../../issues/new?template=submission.yml":
+                  "https://github.com/rotsl/biologyautomation/issues/new"
+                  "?template=submission.yml",
+              "docs/SUBMISSION_GUIDE.md": "submission-guide.md",
+              "docs/CURATION_POLICY.md": "curation-policy.md",
+              "CONTRIBUTING.md": "contributing.md",
+              "CODE_OF_CONDUCT.md": "code-of-conduct.md",
+              "SECURITY.md": "security.md",
+              "ACCEPTED_REPOSITORIES.md":
+                  "accepted-repositories.md",
+              "accepted-repositories.json":
+                  "https://github.com/rotsl/biologyautomation/blob/main/"
+                  "accepted-repositories.json",
+          }
+
+          for path in root.glob("*.md"):
+              text = path.read_text(encoding="utf-8")
+
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+
+              path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Create temporary MkDocs configuration
+        shell: bash
+        run: |
+          cat > .pages-mkdocs.yml <<'YAML'
+          site_name: Automation in Biology
+          site_description: >-
+            Community website and submission portal for the
+            Automation in Biology Zenodo community.
+          site_url: https://rotsl.github.io/biologyautomation/
+          repo_url: https://github.com/rotsl/biologyautomation
+          repo_name: rotsl/biologyautomation
+          edit_uri: ""
+
+          docs_dir: .pages-src
+          site_dir: .pages-site
+
+          theme:
+            name: material
+            language: en
+            logo: docs/assets/automation_bio_logo.png
+            favicon: docs/assets/automation_bio_logo.png
+            features:
+              - navigation.tabs
+              - navigation.sections
+              - navigation.top
+              - content.code.copy
+              - search.suggest
+              - search.highlight
+
+          nav:
+            - Home: index.md
+            - Accepted repositories: accepted-repositories.md
+            - Submit:
+                - Submission guide: submission-guide.md
+            - Governance:
+                - Curation policy: curation-policy.md
+                - Contributing: contributing.md
+                - Code of conduct: code-of-conduct.md
+                - Security: security.md
+            - Zenodo community:
+                - Open Zenodo community: >-
+                    https://zenodo.org/communities/biologyautomation
+
+          markdown_extensions:
+            - admonition
+            - attr_list
+            - def_list
+            - footnotes
+            - md_in_html
+            - tables
+            - toc:
+                permalink: true
+            - pymdownx.details
+            - pymdownx.highlight
+            - pymdownx.superfences
+            - pymdownx.tasklist:
+                custom_checkbox: true
+
+          plugins:
+            - search
+
+          extra:
+            social:
+              - icon: fontawesome/brands/github
+                link: https://github.com/rotsl/biologyautomation
+              - icon: fontawesome/solid/archive
+                link: https://zenodo.org/communities/biologyautomation
+          YAML
+
+      - name: Build website
+        run: |
+          mkdocs build \
+            --clean \
+            --config-file .pages-mkdocs.yml
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .pages-site
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
