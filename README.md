@@ -64,62 +64,90 @@ keywords, and the Automation in Biology community identifier:
     }
   ]
 }
+```
 
 Replace all example metadata with accurate information for the software.
 The community identifier must remain:
+
+```json
 {
   "identifier": "biologyautomation"
 }
+```
 
-Step 2: Connect GitHub to Zenodo
+### Step 2: Connect GitHub to Zenodo
+
 The software repository owner must:
-Sign in to Zenodo.
-Link their GitHub account to Zenodo.
-Open the GitHub section from their Zenodo profile menu.
-Select Sync now.
-Find the software repository.
-Enable the repository using the toggle.
+
+1. Sign in to Zenodo.
+2. Link their GitHub account to Zenodo.
+3. Open the **GitHub** section from their Zenodo profile menu.
+4. Select **Sync now**.
+5. Find the software repository.
+6. Enable the repository using the toggle.
+
 This must be configured by someone with the necessary access to the software
 repository and its Zenodo integration.
-Step 3: Create a GitHub release
-After committing .zenodo.json, create a versioned GitHub release, for
+
+### Step 3: Create a GitHub release
+
+After committing `.zenodo.json`, create a versioned GitHub release, for
 example:
+
+```text
 v1.0.0
+```
 
 Zenodo will detect the new release, archive the released source code, create a
 software record, and mint a DOI.
+
 Creating commits or pushing ordinary branches is not sufficient. A published
 GitHub release is required.
-Step 4: Community review
-The .zenodo.json file requests inclusion in the Automation in Biology
+
+### Step 4: Community review
+
+The `.zenodo.json` file requests inclusion in the Automation in Biology
 community.
+
 The request is not automatically accepted. A community curator reviews the
 record and may:
-Accept it
-Request metadata changes
-Decline it if it is outside the community scope
+
+- Accept it
+- Request metadata changes
+- Decline it if it is outside the community scope
+
 The record appears in the community records list after the community request
 has been accepted.
-Step 5: Open a tracking issue
+
+### Step 5: Open a tracking issue
+
 After Zenodo creates the record, open a submission issue in this repository
 and provide:
-The Zenodo record URL
-The software repository URL
-The release version
-A description of its relevance to automation in biology
-Open a software submission issue
-Important limitations
+
+- The Zenodo record URL
+- The software repository URL
+- The release version
+- A description of its relevance to automation in biology
+
+[Open a software submission issue](../../issues/new?template=submission.yml)
+
+### Important limitations
+
 The GitHub–Zenodo integration is intended primarily for software releases.
+
 Use a normal Zenodo deposit for outputs such as:
-Papers
-Book chapters
-Datasets not distributed as software releases
-Posters
-Presentations
-Experimental protocols
-Hardware documentation requiring separately packaged files
+
+- Papers
+- Book chapters
+- Datasets not distributed as software releases
+- Posters
+- Presentations
+- Experimental protocols
+- Hardware documentation requiring separately packaged files
+
 Each contributor should enable the integration using their own GitHub and
 Zenodo accounts.
+
 Contributors must never send Zenodo API tokens, GitHub credentials, passwords,
 or private access tokens to community curators.
 
