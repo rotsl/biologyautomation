@@ -173,7 +173,7 @@ jobs:
           resource_type_id = ""
 
           if isinstance(resource_type, dict):
-              resource_type_id = str(resource_type.get("id", "")).lower()
+              resource_type_id = str(resource_type.get("id") or resource_type.get("type") or resource_type.get("title") or "").lower()
           elif resource_type:
               resource_type_id = str(resource_type).lower()
 
@@ -182,7 +182,7 @@ jobs:
           ).lower()
 
           if (
-              resource_type_id != "software"
+              "software" not in resource_type_id
               and legacy_upload_type != "software"
           ):
               raise SystemExit(
