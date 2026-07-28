@@ -11,6 +11,17 @@
       "github_issue": 3,
       "github_issue_url": "https://github.com/rotsl/biologyautomation/issues/3",
       "accepted_date": "2026-07-28"
+    },
+    {
+      "title": "Metrics Petri: petri dish colony segmentation and morphometric analysis",
+      "repository": "rotsl/metrics-petri",
+      "repository_url": "https://github.com/rotsl/metrics-petri",
+      "zenodo_record_id": "21628852",
+      "zenodo_url": "https://zenodo.org/records/21628852",
+      "doi": "10.5281/zenodo.21628852",
+      "github_issue": 11,
+      "github_issue_url": "https://github.com/rotsl/biologyautomation/issues/11",
+      "accepted_date": "2026-07-28"
     }
   ]
 }
