@@ -110,13 +110,15 @@ jobs:
           # ----------------------------------------------------------
 
           record_matches = sorted(
-              set(
-                  re.findall(
-                      r"https://zenodo\.org/records/(\d+)",
+              {
+                  group1 or group2
+                  for group1, group2 in re.findall(
+                      r"https://zenodo\.org/records?/(\d+)"
+                      r"|https://doi\.org/10\.5281/zenodo\.(\d+)",
                       ISSUE_BODY,
                       flags=re.IGNORECASE,
                   )
-              )
+              }
           )
 
           if not record_matches:
