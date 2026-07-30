@@ -56,7 +56,8 @@ jobs:
           # ----------------------------------------------------------
 
           zenodo_match = re.search(
-              r"https://zenodo\.org/records/(\d+)",
+              r"https://zenodo\.org/records?/(\d+)"
+              r"|https://doi\.org/10\.5281/zenodo\.(\d+)",
               issue_body,
               flags=re.IGNORECASE,
           )
@@ -66,7 +67,7 @@ jobs:
                   "No Zenodo record URL was found in the submission issue."
               )
 
-          zenodo_id = zenodo_match.group(1)
+          zenodo_id = zenodo_match.group(1) or zenodo_match.group(2)
           zenodo_url = f"https://zenodo.org/records/{zenodo_id}"
 
           # ----------------------------------------------------------
